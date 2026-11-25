@@ -387,6 +387,7 @@ window.PLACE = PLACE;
   document.getElementById('potwCoords').textContent=PLACE.where+' · '+f(PLACE.lat,'N','S')+', '+f(PLACE.lon,'E','W');
   document.getElementById('potwNote').textContent=PLACE.note;
   document.getElementById('potwFly').onclick=()=>{
+    window.showPlace=true;
     document.getElementById('top').scrollIntoView({behavior:reduce?'auto':'smooth'});
     setTimeout(()=>window.flyGlobe && window.flyGlobe(PLACE.lon,PLACE.lat), reduce?0:450);
   };
@@ -482,6 +483,20 @@ const countries = feature(world, world.objects.countries).features;
 const borders = mesh(world, world.objects.countries, (a,b)=>a!==b);
 const graticule = geoGraticule10();
 const CSI = [-74.15, 40.60]; // College of Staten Island
+/* capitals and places marked on the globe: longitude, latitude, label, and where the label sits */
+const MARKS = [            // the last letter puts the label to the right, left, top or bottom of the dot
+  [139.69, 35.68, 'Tokyo', 'r'],
+  [116.40, 39.90, 'Beijing', 't'],
+  [105.85, 21.03, 'Hanoi', 'r'],
+  [ 77.21, 28.61, 'New Delhi', 'b'],
+  [ 51.39, 35.69, 'Tehran', 'r'],
+  [ 35.20, 31.90, 'Palestine', 'l'],
+  [ 36.82, -1.29, 'Nairobi', 'r'],
+  [  7.40,  9.08, 'Abuja', 'l'],
+  [ -3.70, 40.42, 'Madrid', 'l'],
+  [-47.88,-15.79, 'Brasília', 'r'],
+  [-99.13, 19.43, 'Mexico City', 'l']
+];
 
 /* where the Sun is overhead right now (accurate to a fraction of a degree) */
 function subsolar(date){
@@ -573,6 +588,23 @@ function pin(ll,label,color,now,phase){
   ctx.lineWidth=3; ctx.strokeStyle='rgba(7,11,20,.55)'; const lx=px>W*0.68 ? px-9-ctx.measureText(label).width : px+9; ctx.strokeText(label,lx,py+4); ctx.fillText(label,lx,py+4);
 }
 
+function mark(lon,lat,label,side){
+  const d=geoDistance([lon,lat],[-rot[0],-rot[1]]);
+  if(d>=Math.PI/2*0.97) return;
+  // labels fade toward the edge of the globe so the rim never gets crowded
+  const a=Math.max(0,Math.min(1,(Math.cos(d)-0.18)/0.45));
+  const [px,py]=projection([lon,lat]);
+  ctx.fillStyle='rgba(7,11,20,.6)'; ctx.beginPath(); ctx.arc(px,py,3.6,0,7); ctx.fill();
+  ctx.fillStyle='rgba(244,235,211,'+(0.55+0.45*a)+')'; ctx.beginPath(); ctx.arc(px,py,2.4,0,7); ctx.fill();
+  if(a<=0.02) return;
+  ctx.font='400 11px "IBM Plex Sans", system-ui, sans-serif';
+  const tw=ctx.measureText(label).width;
+  const lx = side==='l' ? px-7-tw : side==='r' ? px+7 : px-tw/2;
+  const ly = side==='t' ? py-8 : side==='b' ? py+15 : py+4;
+  ctx.globalAlpha=a; ctx.lineWidth=3; ctx.strokeStyle='rgba(7,11,20,.6)'; ctx.strokeText(label,lx,ly);
+  ctx.fillStyle='#F4EBD3'; ctx.fillText(label,lx,ly); ctx.globalAlpha=1;
+}
+
 function render(now){
   const sun=subsolar(new Date());
   const night=[sun[0]+180, -sun[1]];
@@ -602,9 +634,10 @@ function render(now){
     const [sx,sy]=projection(sun); ctx.fillStyle='#FFD27A'; ctx.beginPath(); ctx.arc(sx,sy,4.5,0,7); ctx.fill();
     ctx.strokeStyle='rgba(255,210,122,0.5)'; ctx.lineWidth=1.2; ctx.beginPath(); ctx.arc(sx,sy,9+3*Math.sin(now/500),0,7); ctx.stroke();
   }
-  // pins: the College of Staten Island, and the place of the week
+  // capitals and places, then the College of Staten Island; the place of the week appears only after "Show it on the globe"
+  for(const m of MARKS) mark(m[0],m[1],m[2],m[3]);
   pin(CSI,'CSI','rgba(217,174,95,1)',now,0);
-  if(PLACE) pin([PLACE.lon,PLACE.lat],PLACE.name,'rgba(255,255,255,1)',now,0.5);
+  if(PLACE && window.showPlace) pin([PLACE.lon,PLACE.lat],PLACE.name,'rgba(255,255,255,1)',now,0.5);
   // rim light
   ctx.strokeStyle='rgba(160,205,255,0.35)'; ctx.lineWidth=1; ctx.beginPath(); path({type:'Sphere'}); ctx.stroke();
   updateText(now,sun);
